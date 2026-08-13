@@ -1,33 +1,7 @@
-/* ============================================================================
-   CITI PROPERTIES — Property Management System Dashboard
-   Stack note: this sandbox can only import from a fixed library allow-list
-   (React, lucide-react, recharts, d3, lodash, etc). @mui/material,
-   framer-motion and @fortawesome are not resolvable here, so the same
-   product decisions are implemented with native equivalents:
-     - Font Awesome  -> lucide-react (same "functional icon" role)
-     - Framer Motion -> CSS transitions/keyframes, capped at 200ms, applied
-                         only to the same interactions specified in the brief
-                         (sidebar collapse, modal reveal, tab switch)
-     - MUI            -> a small local "ui kit" section below (Input, Select,
-                         Dialog, Menu) built with Tailwind, matching MUI's
-                         density/behavior so the visual language is identical
 
-   Change log (this revision):
-     - Sidebar nav now runs the full height of the rail; the old text credit
-       block at the bottom is replaced with a User Avatar profile.
-     - Header's "Log Ticket" button is replaced with a Profile Avatar
-       (name + role: Landlord / Tenant / Admin) next to Add Unit.
-       Logging a ticket now lives as a small "+" affordance on the
-       Maintenance Queue card, so no functionality is lost.
-     - A single sitewide footer sits below everything (sidebar + content),
-       separated by a hairline border, with "Designed & Developed by
-       Mega Technologies" and a live © {year} All rights reserved.
-     - Light/dark theme continues to be driven by the header toggle icon.
-     - Pass fixed a handful of non-standard Tailwind class names
-       (w-62, h-4.5, min-w-160, ...) with real scale/arbitrary values so
-       spacing renders correctly and consistently at every breakpoint.
-   ========================================================================== */
-import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import React, {
+  createContext, useContext, useState, useMemo, useEffect, useRef, useCallback,
+} from "react";
 import {
   Sun, Moon, Search, Bell, Plus, ChevronDown, ChevronLeft, ChevronRight,
   Menu, X, ArrowUpDown, MoreHorizontal, AlertTriangle, Clock, Wrench,
@@ -35,20 +9,106 @@ import {
   ClipboardList, CircleCheck, ArrowUp, ArrowDown, Filter, ChevronRight as ChevronRightIcon,
 } from "lucide-react";
 
-/* ----------------------------------------------------------------------------
-   0. DESIGN TOKENS (Tailwind is utility-first, but a few values are shared
-      across primitives, so they live here once)
-   -------------------------------------------------------------------------- */
-const STATUS_STYLES = {
-  Occupied: "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-400 dark:ring-emerald-500/20",
-  Vacant: "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-400 dark:ring-amber-500/20",
-  Maintenance: "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20 dark:bg-rose-500/10 dark:text-rose-400 dark:ring-rose-500/20",
-};
-const PRIORITY_STYLES = {
-  Urgent: "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20 dark:bg-rose-500/10 dark:text-rose-400 dark:ring-rose-500/20",
-  Medium: "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-400 dark:ring-amber-500/20",
-  Low: "bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-500/10 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700",
-};
+
+const ThemeContext = createContext(null);
+
+function useTheme() {
+  const ctx = useContext(ThemeContext);
+  if (!ctx) throw new Error("useTheme must be used within a ThemeProvider");
+  return ctx;
+}
+
+function getInitialTheme() {
+  if (typeof window !== "undefined" && window.matchMedia) {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  return false;
+}
+
+/* Resolved class tokens for both themes, built once per theme change.
+   Every component pulls from here instead of writing its own dark: pairs. */
+function buildTheme(isDark) {
+  return {
+    isDark,
+    page: isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900",
+    panelBg: isDark ? "bg-slate-900" : "bg-white",
+    panelBorder: isDark ? "border-slate-800" : "border-slate-200",
+    headerBg: isDark ? "bg-slate-900/95" : "bg-white/95",
+    textPrimary: isDark ? "text-slate-100" : "text-slate-900",
+    textSecondary: isDark ? "text-slate-200" : "text-slate-700",
+    textBody: isDark ? "text-slate-300" : "text-slate-600",
+    textMuted: isDark ? "text-slate-400" : "text-slate-500",
+    textFaint: isDark ? "text-slate-500" : "text-slate-400",
+    iconMuted: isDark ? "text-slate-500" : "text-slate-400",
+    divider: isDark ? "divide-slate-800/60" : "divide-slate-100",
+    dividerBar: isDark ? "bg-slate-800" : "bg-slate-200",
+    rowBorder: isDark ? "border-slate-800/60" : "border-slate-100",
+    hoverRow: isDark ? "hover:bg-slate-800/40" : "hover:bg-slate-50",
+    hoverBg: isDark ? "hover:bg-slate-800" : "hover:bg-slate-100",
+    hoverText: isDark ? "hover:text-slate-300" : "hover:text-slate-600",
+    inputBg: isDark
+      ? "bg-slate-900 border-slate-800 text-slate-100 placeholder:text-slate-500"
+      : "bg-white border-slate-200 text-slate-800 placeholder:text-slate-400",
+    navActive: isDark ? "bg-indigo-500/10 text-indigo-400" : "bg-indigo-50 text-indigo-700",
+    navInactive: isDark ? "text-slate-300 hover:bg-slate-800" : "text-slate-600 hover:bg-slate-100",
+    navIconActive: isDark ? "text-indigo-400" : "text-indigo-600",
+    navIconInactive: isDark ? "text-slate-500" : "text-slate-400",
+    secondaryBtn: isDark
+      ? "bg-slate-900 text-slate-200 border-slate-800 hover:bg-slate-800"
+      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50",
+    subtleBtn: isDark ? "bg-slate-800 text-slate-200 hover:bg-slate-700" : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+    ghostBtn: isDark ? "text-slate-300 hover:bg-slate-800" : "text-slate-600 hover:bg-slate-100",
+    filterActive: isDark
+      ? "border-indigo-500/30 bg-indigo-500/10 text-indigo-400"
+      : "border-indigo-300 bg-indigo-50 text-indigo-700",
+    filterInactive: isDark
+      ? "border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800"
+      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+    avatarRing: isDark ? "ring-slate-900" : "ring-white",
+    modalOverlay: isDark ? "bg-black/60" : "bg-slate-900/40",
+    modalBg: isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200",
+    chipBg: isDark ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-500",
+    tableHeadBorder: isDark ? "border-slate-800" : "border-slate-200",
+    statusStyles: {
+      Occupied: isDark
+        ? "bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-500/20"
+        : "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20",
+      Vacant: isDark
+        ? "bg-amber-500/10 text-amber-400 ring-1 ring-inset ring-amber-500/20"
+        : "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20",
+      Maintenance: isDark
+        ? "bg-rose-500/10 text-rose-400 ring-1 ring-inset ring-rose-500/20"
+        : "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20",
+    },
+    priorityStyles: {
+      Urgent: isDark
+        ? "bg-rose-500/10 text-rose-400 ring-1 ring-inset ring-rose-500/20"
+        : "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20",
+      Medium: isDark
+        ? "bg-amber-500/10 text-amber-400 ring-1 ring-inset ring-amber-500/20"
+        : "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20",
+      Low: isDark
+        ? "bg-slate-800 text-slate-300 ring-1 ring-inset ring-slate-700"
+        : "bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-500/10",
+    },
+  };
+}
+
+function ThemeProvider({ children }) {
+  const [isDark, setIsDark] = useState(getInitialTheme);
+
+  
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", isDark);
+    document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+  }, [isDark]);
+
+  const toggleTheme = useCallback(() => setIsDark((d) => !d), []);
+  const theme = useMemo(() => buildTheme(isDark), [isDark]);
+  const value = useMemo(() => ({ isDark, toggleTheme, theme }), [isDark, toggleTheme, theme]);
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+}
 
 /* ----------------------------------------------------------------------------
    1. MOCK DATA (would come from an API layer in production)
@@ -86,51 +146,50 @@ const NAV_ITEMS = [
   { id: "leases", label: "Leases", icon: FileText },
   { id: "reports", label: "Reports", icon: ClipboardList },
 ];
-/* The signed-in user driving the header + sidebar profile. `role` is one of
-   "Landlord" | "Tenant" | "Admin" — swap this out per authenticated session. */
+
 const CURRENT_USER = { name: "Amani Joseph", role: "Landlord" };
 
-/* ----------------------------------------------------------------------------
-   2. SMALL UI PRIMITIVES (stand-ins for MUI Input / Select / Dialog / Menu,
-      built to the same density + interaction contract)
-   -------------------------------------------------------------------------- */
+
 function TextField({ icon: Icon, className = "", ...props }) {
+  const { theme } = useTheme();
   return (
     <div className={`relative ${className}`}>
       {Icon && (
-        <Icon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+        <Icon className={`pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 ${theme.iconMuted}`} />
       )}
       <input
         {...props}
-        className={`h-9 w-full rounded-md border border-slate-200 bg-white ${Icon ? "pl-8" : "pl-3"} pr-3 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition-colors duration-150 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-indigo-500`}
+        className={`h-9 w-full rounded-md border ${theme.inputBg} ${Icon ? "pl-8" : "pl-3"} pr-3 text-sm outline-none transition-colors duration-150 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:focus:border-indigo-500`}
       />
     </div>
   );
 }
 function Select({ value, onChange, options, className = "" }) {
+  const { theme } = useTheme();
   return (
     <div className={`relative ${className}`}>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-9 w-full appearance-none rounded-md border border-slate-200 bg-white pl-3 pr-8 text-sm text-slate-700 outline-none transition-colors duration-150 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+        className={`h-9 w-full appearance-none rounded-md border ${theme.inputBg} pl-3 pr-8 text-sm outline-none transition-colors duration-150 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20`}
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>
         ))}
       </select>
-      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+      <ChevronDown className={`pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 ${theme.iconMuted}`} />
     </div>
   );
 }
 function Button({ variant = "primary", size = "md", icon: Icon, children, className = "", ...props }) {
+  const { theme } = useTheme();
   const base = "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 disabled:opacity-50 disabled:pointer-events-none";
   const sizes = { sm: "h-8 px-2.5 text-xs", md: "h-9 px-3.5 text-sm" };
   const variants = {
     primary: "bg-indigo-600 text-white hover:bg-indigo-500 shadow-sm",
-    secondary: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-800 dark:hover:bg-slate-800",
-    ghost: "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800",
-    subtle: "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700",
+    secondary: `border ${theme.secondaryBtn}`,
+    ghost: theme.ghostBtn,
+    subtle: theme.subtleBtn,
   };
   return (
     <button className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} {...props}>
@@ -140,21 +199,24 @@ function Button({ variant = "primary", size = "md", icon: Icon, children, classN
   );
 }
 function Badge({ status }) {
+  const { theme } = useTheme();
   return (
-    <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[status] || ""}`}>
+    <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${theme.statusStyles[status] || ""}`}>
       {status}
     </span>
   );
 }
 function PriorityTag({ priority }) {
+  const { theme } = useTheme();
   return (
-    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${PRIORITY_STYLES[priority] || ""}`}>
+    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${theme.priorityStyles[priority] || ""}`}>
       {priority}
     </span>
   );
 }
 /* Round initials avatar used in both the sidebar profile and the header. */
 function Avatar({ name, size = "h-8 w-8", textSize = "text-xs" }) {
+  const { theme } = useTheme();
   const initials = name
     .split(" ")
     .filter(Boolean)
@@ -164,26 +226,26 @@ function Avatar({ name, size = "h-8 w-8", textSize = "text-xs" }) {
     .toUpperCase();
   return (
     <div
-      className={`flex ${size} shrink-0 items-center justify-center rounded-full bg-indigo-600 ${textSize} font-semibold text-white ring-2 ring-white dark:ring-slate-900`}
+      className={`flex ${size} shrink-0 items-center justify-center rounded-full bg-indigo-600 ${textSize} font-semibold text-white ring-2 ${theme.avatarRing}`}
       aria-hidden="true"
     >
       {initials}
     </div>
   );
 }
-/* Dialog: capped 200ms fade + scale, no glassmorphism/blur decoration */
 function Dialog({ open, onClose, title, children }) {
+  const { theme } = useTheme();
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-slate-900/40 animate-[fadeIn_150ms_ease-out] dark:bg-black/60"
+        className={`absolute inset-0 animate-[fadeIn_150ms_ease-out] ${theme.modalOverlay}`}
         onClick={onClose}
       />
-      <div className="relative w-full max-w-md rounded-lg border border-slate-200 bg-white shadow-xl animate-[dialogIn_180ms_ease-out] dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
-          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">{title}</h3>
-          <button onClick={onClose} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300">
+      <div className={`relative w-full max-w-md rounded-lg border shadow-xl animate-[dialogIn_180ms_ease-out] ${theme.modalBg}`}>
+        <div className={`flex items-center justify-between border-b px-4 py-3 ${theme.panelBorder}`}>
+          <h3 className={`text-sm font-semibold ${theme.textPrimary}`}>{title}</h3>
+          <button onClick={onClose} className={`rounded p-1 ${theme.iconMuted} ${theme.hoverBg} ${theme.hoverText}`}>
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -197,22 +259,23 @@ function Dialog({ open, onClose, title, children }) {
    3. KPI CARD
    -------------------------------------------------------------------------- */
 function KpiCard({ label, value, delta, deltaGood, sub, icon: Icon }) {
+  const { theme } = useTheme();
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+    <div className={`rounded-lg border p-4 ${theme.panelBg} ${theme.panelBorder}`}>
       <div className="flex items-start justify-between">
-        <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</span>
-        <Icon className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+        <span className={`text-xs font-medium uppercase tracking-wide ${theme.textMuted}`}>{label}</span>
+        <Icon className={`h-4 w-4 ${theme.iconMuted}`} />
       </div>
       <div className="mt-2 flex items-baseline gap-2">
-        <span className="text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-50">{value}</span>
+        <span className={`text-2xl font-semibold tabular-nums ${theme.textPrimary}`}>{value}</span>
         {delta && (
-          <span className={`flex items-center gap-0.5 text-xs font-medium ${deltaGood ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+          <span className={`flex items-center gap-0.5 text-xs font-medium ${deltaGood ? (theme.isDark ? "text-emerald-400" : "text-emerald-600") : (theme.isDark ? "text-rose-400" : "text-rose-600")}`}>
             {deltaGood ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
             {delta}
           </span>
         )}
       </div>
-      {sub && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{sub}</p>}
+      {sub && <p className={`mt-1 text-xs ${theme.textMuted}`}>{sub}</p>}
     </div>
   );
 }
@@ -221,6 +284,7 @@ function KpiCard({ label, value, delta, deltaGood, sub, icon: Icon }) {
    4. SIDEBAR
    -------------------------------------------------------------------------- */
 function Sidebar({ collapsed, setCollapsed, active, setActive, mobileOpen, setMobileOpen, user }) {
+  const { theme } = useTheme();
   return (
     <>
       {/* mobile scrim */}
@@ -228,34 +292,31 @@ function Sidebar({ collapsed, setCollapsed, active, setActive, mobileOpen, setMo
         <div className="fixed inset-0 z-40 bg-slate-900/40 lg:hidden" onClick={() => setMobileOpen(false)} />
       )}
       <aside
-        className={`fixed z-50 flex h-full w-72 max-w-[80%] flex-col border-r border-slate-200 bg-white transition-[width,transform] duration-200 ease-out dark:border-slate-800 dark:bg-slate-900
+        className={`fixed z-50 flex h-full w-72 max-w-[80%] flex-col border-r transition-[width,transform] duration-200 ease-out ${theme.panelBg} ${theme.panelBorder}
           lg:static lg:h-screen lg:max-w-none lg:translate-x-0
           ${collapsed ? "lg:w-20" : "lg:w-64"}
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
         {/* Logo */}
-        <div className={`flex h-16 shrink-0 items-center border-b border-slate-200 dark:border-slate-800 ${collapsed ? "justify-center px-0" : "justify-between px-4"}`}>
+        <div className={`flex h-16 shrink-0 items-center border-b ${theme.panelBorder} ${collapsed ? "justify-center px-0" : "justify-between px-4"}`}>
           <div className="flex items-center gap-2 overflow-hidden">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-indigo-600 text-white">
               <Building2 className="h-5 w-5" />
             </div>
             {!collapsed && (
-              <span className="truncate text-[15px] font-semibold tracking-tight text-slate-900 dark:text-slate-50">
+              <span className={`truncate text-[15px] font-semibold tracking-tight ${theme.textPrimary}`}>
                 Citi Properties
               </span>
             )}
           </div>
           <button
             onClick={() => setMobileOpen(false)}
-            className="rounded p-1 text-slate-400 hover:bg-slate-100 lg:hidden dark:hover:bg-slate-800"
+            className={`rounded p-1 ${theme.iconMuted} ${theme.hoverBg} lg:hidden`}
             aria-label="Close navigation"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
-
-        {/* Nav — flex-1 so the rail always runs the full height of the sidebar,
-            keeping the collapse control and profile pinned to the bottom */}
         <nav className="flex flex-1 flex-col overflow-y-auto px-2 py-3">
           <ul className="space-y-0.5">
             {NAV_ITEMS.map((item) => {
@@ -266,12 +327,10 @@ function Sidebar({ collapsed, setCollapsed, active, setActive, mobileOpen, setMo
                     onClick={() => { setActive(item.id); setMobileOpen(false); }}
                     title={collapsed ? item.label : undefined}
                     className={`group flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors duration-150
-                      ${isActive
-                        ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400"
-                        : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"}
+                      ${isActive ? theme.navActive : theme.navInactive}
                       ${collapsed ? "justify-center" : ""}`}
                   >
-                    <item.icon className={`h-4 w-4 shrink-0 ${isActive ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400 dark:text-slate-500"}`} />
+                    <item.icon className={`h-4 w-4 shrink-0 ${isActive ? theme.navIconActive : theme.navIconInactive}`} />
                     {!collapsed && <span className="truncate">{item.label}</span>}
                   </button>
                 </li>
@@ -285,10 +344,10 @@ function Sidebar({ collapsed, setCollapsed, active, setActive, mobileOpen, setMo
         </nav>
 
         {/* Collapse toggle (desktop only) */}
-        <div className="hidden shrink-0 border-t border-slate-200 p-2 lg:block dark:border-slate-800">
+        <div className={`hidden shrink-0 border-t p-2 lg:block ${theme.panelBorder}`}>
           <button
             onClick={() => setCollapsed((c) => !c)}
-            className={`flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 ${collapsed ? "justify-center" : ""}`}
+            className={`flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium ${theme.textMuted} ${theme.hoverBg} ${collapsed ? "justify-center" : ""}`}
           >
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <><ChevronLeft className="h-4 w-4" /> Collapse</>}
           </button>
@@ -296,16 +355,16 @@ function Sidebar({ collapsed, setCollapsed, active, setActive, mobileOpen, setMo
 
         {/* User avatar profile — replaces the old "Developed by" credit;
             the credit now lives once, sitewide, in the page footer. */}
-        <div className={`shrink-0 border-t border-slate-200 p-2 dark:border-slate-800`}>
+        <div className={`shrink-0 border-t p-2 ${theme.panelBorder}`}>
           <button
-            className={`flex w-full items-center gap-2.5 rounded-md p-1.5 text-left transition-colors duration-150 hover:bg-slate-100 dark:hover:bg-slate-800 ${collapsed ? "justify-center" : ""}`}
+            className={`flex w-full items-center gap-2.5 rounded-md p-1.5 text-left transition-colors duration-150 ${theme.hoverBg} ${collapsed ? "justify-center" : ""}`}
             title={collapsed ? `${user.name} · ${user.role}` : undefined}
           >
             <Avatar name={user.name} />
             {!collapsed && (
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-slate-700 dark:text-slate-200">{user.name}</span>
-                <span className="block truncate text-[11px] text-slate-400 dark:text-slate-500">{user.role}</span>
+                <span className={`block truncate text-sm font-medium ${theme.textSecondary}`}>{user.name}</span>
+                <span className={`block truncate text-[11px] ${theme.textFaint}`}>{user.role}</span>
               </span>
             )}
           </button>
@@ -318,7 +377,21 @@ function Sidebar({ collapsed, setCollapsed, active, setActive, mobileOpen, setMo
 /* ----------------------------------------------------------------------------
    5. HEADER
    -------------------------------------------------------------------------- */
-function Header({ isDark, setIsDark, setMobileOpen, onAddUnit, property, setProperty, user }) {
+function ThemeToggle() {
+  const { isDark, toggleTheme, theme } = useTheme();
+  return (
+    <button
+      onClick={toggleTheme}
+      aria-label="Toggle theme"
+      aria-pressed={isDark}
+      className={`flex h-9 w-9 items-center justify-center rounded-md border transition-colors duration-150 ${theme.panelBorder} ${theme.textBody} ${theme.hoverBg}`}
+    >
+      {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </button>
+  );
+}
+function Header({ setMobileOpen, onAddUnit, property, setProperty, user }) {
+  const { theme } = useTheme();
   const [propOpen, setPropOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -329,10 +402,10 @@ function Header({ isDark, setIsDark, setMobileOpen, onAddUnit, property, setProp
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
   return (
-    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 border-b border-slate-200 bg-white/95 px-3 backdrop-blur-sm sm:gap-3 sm:px-4 dark:border-slate-800 dark:bg-slate-900/95">
+    <header className={`sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 border-b px-3 backdrop-blur-sm sm:gap-3 sm:px-4 ${theme.headerBg} ${theme.panelBorder}`}>
       <button
         onClick={() => setMobileOpen(true)}
-        className="shrink-0 rounded p-1.5 text-slate-500 hover:bg-slate-100 lg:hidden dark:hover:bg-slate-800"
+        className={`shrink-0 rounded p-1.5 ${theme.textMuted} ${theme.hoverBg} lg:hidden`}
         aria-label="Open navigation"
       >
         <Menu className="h-5 w-5" />
@@ -342,23 +415,23 @@ function Header({ isDark, setIsDark, setMobileOpen, onAddUnit, property, setProp
       <div className="relative min-w-0 shrink-0" ref={ref}>
         <button
           onClick={() => setPropOpen((o) => !o)}
-          className="flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 sm:px-3 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          className={`flex h-9 items-center gap-2 rounded-md border px-2.5 text-sm font-medium sm:px-3 ${theme.panelBg} ${theme.panelBorder} ${theme.textSecondary} ${theme.hoverBg}`}
         >
-          <Building2 className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+          <Building2 className={`h-3.5 w-3.5 shrink-0 ${theme.iconMuted}`} />
           <span className="max-w-[110px] truncate sm:max-w-[180px]">{property.name}</span>
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+          <ChevronDown className={`h-3.5 w-3.5 shrink-0 ${theme.iconMuted}`} />
         </button>
         {propOpen && (
-          <div className="absolute left-0 top-10 z-40 w-64 animate-[dialogIn_150ms_ease-out] rounded-md border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-800 dark:bg-slate-900">
+          <div className={`absolute left-0 top-10 z-40 w-64 animate-[dialogIn_150ms_ease-out] rounded-md border p-1 shadow-lg ${theme.panelBg} ${theme.panelBorder}`}>
             {PROPERTIES.map((p) => (
               <button
                 key={p.id}
                 onClick={() => { setProperty(p); setPropOpen(false); }}
-                className="flex w-full items-center justify-between rounded px-2.5 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+                className={`flex w-full items-center justify-between rounded px-2.5 py-2 text-left text-sm ${theme.hoverBg}`}
               >
                 <span>
-                  <span className="block font-medium text-slate-700 dark:text-slate-200">{p.name}</span>
-                  <span className="block text-xs text-slate-400">{p.city} · {p.units} units</span>
+                  <span className={`block font-medium ${theme.textSecondary}`}>{p.name}</span>
+                  <span className={`block text-xs ${theme.textFaint}`}>{p.city} · {p.units} units</span>
                 </span>
                 {property.id === p.id && <CircleCheck className="h-4 w-4 shrink-0 text-indigo-600" />}
               </button>
@@ -375,31 +448,24 @@ function Header({ isDark, setIsDark, setMobileOpen, onAddUnit, property, setProp
           <span className="hidden xs:inline sm:inline">Add Unit</span>
         </Button>
 
-        <div className="mx-0.5 h-6 w-px bg-slate-200 sm:mx-1 dark:bg-slate-800" />
+        <div className={`mx-0.5 h-6 w-px sm:mx-1 ${theme.dividerBar}`} />
 
-        <button className="relative rounded-md p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800" aria-label="Notifications">
+        <button className={`relative rounded-md p-2 ${theme.textMuted} ${theme.hoverBg}`} aria-label="Notifications">
           <Bell className="h-5 w-5" />
           <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-rose-500" />
         </button>
 
-        {/* Theme toggle — fires setIsDark(!isDark) directly */}
-        <button
-          onClick={() => setIsDark(!isDark)}
-          aria-label="Toggle theme"
-          className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition-colors duration-150 hover:bg-slate-100 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
-        >
-          {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </button>
+        <ThemeToggle />
 
-        <div className="mx-0.5 h-6 w-px bg-slate-200 sm:mx-1 dark:bg-slate-800" />
+        <div className={`mx-0.5 h-6 w-px sm:mx-1 ${theme.dividerBar}`} />
 
         {/* Profile avatar — replaces the old "Log Ticket" button. Logging a
             ticket now lives on the Maintenance Queue card itself. */}
-        <button className="flex items-center gap-2 rounded-md py-1 pl-1 pr-1.5 hover:bg-slate-100 sm:pr-2.5 dark:hover:bg-slate-800">
+        <button className={`flex items-center gap-2 rounded-md py-1 pl-1 pr-1.5 sm:pr-2.5 ${theme.hoverBg}`}>
           <Avatar name={user.name} />
           <span className="hidden text-left leading-tight md:block">
-            <span className="block text-sm font-medium text-slate-700 dark:text-slate-200">{user.name}</span>
-            <span className="block text-[11px] text-slate-400 dark:text-slate-500">{user.role}</span>
+            <span className={`block text-sm font-medium ${theme.textSecondary}`}>{user.name}</span>
+            <span className={`block text-[11px] ${theme.textFaint}`}>{user.role}</span>
           </span>
         </button>
       </div>
@@ -411,6 +477,7 @@ function Header({ isDark, setIsDark, setMobileOpen, onAddUnit, property, setProp
    6. UNIT & PROPERTY TABLE
    -------------------------------------------------------------------------- */
 function UnitTable({ units }) {
+  const { theme } = useTheme();
   const [statusFilter, setStatusFilter] = useState("All");
   const [tenantQuery, setTenantQuery] = useState("");
   const [expiringOnly, setExpiringOnly] = useState(false);
@@ -450,9 +517,9 @@ function UnitTable({ units }) {
     { key: "leaseEnd", label: "Lease End" },
   ];
   return (
-    <div className="rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3 dark:border-slate-800">
-        <h2 className="mr-2 text-sm font-semibold text-slate-800 dark:text-slate-100">Units &amp; Properties</h2>
+    <div className={`rounded-lg border ${theme.panelBg} ${theme.panelBorder}`}>
+      <div className={`flex flex-wrap items-center gap-2 border-b p-3 ${theme.panelBorder}`}>
+        <h2 className={`mr-2 text-sm font-semibold ${theme.textPrimary}`}>Units &amp; Properties</h2>
         <TextField
           icon={Search}
           placeholder="Filter by tenant name…"
@@ -474,24 +541,22 @@ function UnitTable({ units }) {
         <button
           onClick={() => setExpiringOnly((v) => !v)}
           className={`inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors duration-150 ${
-            expiringOnly
-              ? "border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-400"
-              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            expiringOnly ? theme.filterActive : theme.filterInactive
           }`}
         >
           <Filter className="h-3.5 w-3.5" /> Expiring ≤ 30d
         </button>
-        <span className="ml-auto text-xs text-slate-400">{filtered.length} of {units.length}</span>
+        <span className={`ml-auto text-xs ${theme.textFaint}`}>{filtered.length} of {units.length}</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead>
-            <tr className="border-b border-slate-200 dark:border-slate-800">
+            <tr className={`border-b ${theme.tableHeadBorder}`}>
               {columns.map((c) => (
-                <th key={c.key} className="px-3 py-2 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  <button onClick={() => toggleSort(c.key)} className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200">
+                <th key={c.key} className={`px-3 py-2 text-xs font-medium uppercase tracking-wide ${theme.textMuted}`}>
+                  <button onClick={() => toggleSort(c.key)} className={`flex items-center gap-1 ${theme.hoverText}`}>
                     {c.label}
-                    <ArrowUpDown className={`h-3 w-3 ${sort.key === c.key ? "text-indigo-500" : "text-slate-300 dark:text-slate-600"}`} />
+                    <ArrowUpDown className={`h-3 w-3 ${sort.key === c.key ? "text-indigo-500" : (theme.isDark ? "text-slate-600" : "text-slate-300")}`} />
                   </button>
                 </th>
               ))}
@@ -500,15 +565,15 @@ function UnitTable({ units }) {
           </thead>
           <tbody>
             {filtered.map((u) => (
-              <tr key={u.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40">
-                <td className="px-3 py-2.5 font-medium text-slate-800 dark:text-slate-100">{u.id}</td>
-                <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">{u.property}</td>
-                <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">{u.tenant}</td>
+              <tr key={u.id} className={`border-b last:border-0 ${theme.rowBorder} ${theme.hoverRow}`}>
+                <td className={`px-3 py-2.5 font-medium ${theme.textPrimary}`}>{u.id}</td>
+                <td className={`px-3 py-2.5 ${theme.textBody}`}>{u.property}</td>
+                <td className={`px-3 py-2.5 ${theme.textBody}`}>{u.tenant}</td>
                 <td className="px-3 py-2.5"><Badge status={u.status} /></td>
-                <td className="px-3 py-2.5 tabular-nums text-slate-700 dark:text-slate-200">${u.rent.toLocaleString()}</td>
-                <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400">{u.leaseEnd || "—"}</td>
+                <td className={`px-3 py-2.5 tabular-nums ${theme.textSecondary}`}>${u.rent.toLocaleString()}</td>
+                <td className={`px-3 py-2.5 ${theme.textMuted}`}>{u.leaseEnd || "—"}</td>
                 <td className="px-3 py-2.5 text-right">
-                  <button className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300">
+                  <button className={`rounded p-1 ${theme.iconMuted} ${theme.hoverBg} ${theme.hoverText}`}>
                     <MoreHorizontal className="h-4 w-4" />
                   </button>
                 </td>
@@ -516,7 +581,7 @@ function UnitTable({ units }) {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-8 text-center text-sm text-slate-400">
+                <td colSpan={7} className={`px-3 py-8 text-center text-sm ${theme.textFaint}`}>
                   No units match these filters.
                 </td>
               </tr>
@@ -532,17 +597,18 @@ function UnitTable({ units }) {
    7. MAINTENANCE QUEUE
    -------------------------------------------------------------------------- */
 function MaintenanceQueue({ tickets, onNewTicket }) {
+  const { theme } = useTheme();
   const order = { Urgent: 0, Medium: 1, Low: 2 };
   const sorted = [...tickets].sort((a, b) => order[a.priority] - order[b.priority]);
   return (
-    <div className="rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-      <div className="flex items-center justify-between border-b border-slate-200 p-3 dark:border-slate-800">
-        <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Maintenance Queue</h2>
+    <div className={`rounded-lg border ${theme.panelBg} ${theme.panelBorder}`}>
+      <div className={`flex items-center justify-between border-b p-3 ${theme.panelBorder}`}>
+        <h2 className={`text-sm font-semibold ${theme.textPrimary}`}>Maintenance Queue</h2>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400">{tickets.length} open</span>
+          <span className={`text-xs ${theme.textFaint}`}>{tickets.length} open</span>
           <button
             onClick={onNewTicket}
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-indigo-600 dark:hover:bg-slate-800 dark:hover:text-indigo-400"
+            className={`rounded-md p-1.5 ${theme.iconMuted} ${theme.hoverBg} hover:text-indigo-600 dark:hover:text-indigo-400`}
             title="Log a ticket"
             aria-label="Log a maintenance ticket"
           >
@@ -550,19 +616,19 @@ function MaintenanceQueue({ tickets, onNewTicket }) {
           </button>
         </div>
       </div>
-      <ul className="divide-y divide-slate-100 dark:divide-slate-800/60">
+      <ul className={`divide-y ${theme.divider}`}>
         {sorted.map((t) => (
           <li key={t.id} className="flex items-start gap-3 p-3">
-            <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-100 dark:bg-slate-800">
-              <Wrench className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+            <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${theme.chipBg}`}>
+              <Wrench className="h-3.5 w-3.5" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">{t.unit}</span>
+                <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${theme.chipBg}`}>{t.unit}</span>
                 <PriorityTag priority={t.priority} />
               </div>
-              <p className="mt-1 truncate text-sm font-medium text-slate-700 dark:text-slate-200">{t.issue}</p>
-              <div className="mt-0.5 flex items-center gap-1 text-xs text-slate-400">
+              <p className={`mt-1 truncate text-sm font-medium ${theme.textSecondary}`}>{t.issue}</p>
+              <div className={`mt-0.5 flex items-center gap-1 text-xs ${theme.textFaint}`}>
                 <Clock className="h-3 w-3" /> {t.logged} · {t.status}
               </div>
             </div>
@@ -570,7 +636,7 @@ function MaintenanceQueue({ tickets, onNewTicket }) {
           </li>
         ))}
         {sorted.length === 0 && (
-          <li className="p-6 text-center text-sm text-slate-400">Queue is clear.</li>
+          <li className={`p-6 text-center text-sm ${theme.textFaint}`}>Queue is clear.</li>
         )}
       </ul>
     </div>
@@ -581,6 +647,7 @@ function MaintenanceQueue({ tickets, onNewTicket }) {
    8. ADD UNIT / LOG TICKET FORMS
    -------------------------------------------------------------------------- */
 function AddUnitForm({ onSubmit, onCancel }) {
+  const { theme } = useTheme();
   const [form, setForm] = useState({ id: "", property: PROPERTIES[0].name, rent: "", status: "Vacant" });
   return (
     <form
@@ -588,11 +655,11 @@ function AddUnitForm({ onSubmit, onCancel }) {
       className="space-y-3"
     >
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Unit ID</label>
+        <label className={`mb-1 block text-xs font-medium ${theme.textMuted}`}>Unit ID</label>
         <TextField placeholder="e.g. U-620" value={form.id} onChange={(e) => setForm({ ...form, id: e.target.value })} />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Property</label>
+        <label className={`mb-1 block text-xs font-medium ${theme.textMuted}`}>Property</label>
         <Select
           value={form.property}
           onChange={(v) => setForm({ ...form, property: v })}
@@ -601,7 +668,7 @@ function AddUnitForm({ onSubmit, onCancel }) {
         />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Monthly Rent (USD)</label>
+        <label className={`mb-1 block text-xs font-medium ${theme.textMuted}`}>Monthly Rent (USD)</label>
         <TextField type="number" placeholder="1500" value={form.rent} onChange={(e) => setForm({ ...form, rent: e.target.value })} />
       </div>
       <div className="flex justify-end gap-2 pt-1">
@@ -612,6 +679,7 @@ function AddUnitForm({ onSubmit, onCancel }) {
   );
 }
 function LogTicketForm({ onSubmit, onCancel }) {
+  const { theme } = useTheme();
   const [form, setForm] = useState({ unit: UNITS[0].id, issue: "", priority: "Medium" });
   return (
     <form
@@ -619,7 +687,7 @@ function LogTicketForm({ onSubmit, onCancel }) {
       className="space-y-3"
     >
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Unit</label>
+        <label className={`mb-1 block text-xs font-medium ${theme.textMuted}`}>Unit</label>
         <Select
           value={form.unit}
           onChange={(v) => setForm({ ...form, unit: v })}
@@ -628,11 +696,11 @@ function LogTicketForm({ onSubmit, onCancel }) {
         />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Issue</label>
+        <label className={`mb-1 block text-xs font-medium ${theme.textMuted}`}>Issue</label>
         <TextField placeholder="Describe the issue…" value={form.issue} onChange={(e) => setForm({ ...form, issue: e.target.value })} />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Priority</label>
+        <label className={`mb-1 block text-xs font-medium ${theme.textMuted}`}>Priority</label>
         <Select
           value={form.priority}
           onChange={(v) => setForm({ ...form, priority: v })}
@@ -652,13 +720,14 @@ function LogTicketForm({ onSubmit, onCancel }) {
    9. SITEWIDE FOOTER
    -------------------------------------------------------------------------- */
 function SiteFooter() {
+  const { theme } = useTheme();
   const year = new Date().getFullYear();
   return (
-    <footer className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
-      <p className="text-center text-xs text-slate-400 dark:text-slate-500">
+    <footer className={`shrink-0 border-t px-4 py-3 ${theme.panelBg} ${theme.panelBorder}`}>
+      <p className={`text-center text-xs ${theme.textFaint}`}>
         Designed &amp; Developed by{" "}
-        <span className="font-medium text-slate-500 dark:text-slate-400">Mega Technologies</span>
-        <span className="mx-1.5 text-slate-300 dark:text-slate-700">·</span>
+        <span className={`font-medium ${theme.textMuted}`}>Mega Technologies</span>
+        <span className={`mx-1.5 ${theme.isDark ? "text-slate-700" : "text-slate-300"}`}>·</span>
         © {year} All rights reserved.
       </p>
     </footer>
@@ -666,16 +735,10 @@ function SiteFooter() {
 }
 
 /* ----------------------------------------------------------------------------
-   10. ROOT APP
+   10. DASHBOARD 
    -------------------------------------------------------------------------- */
-function getInitialTheme() {
-  if (typeof window !== "undefined" && window.matchMedia) {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
-  }
-  return false;
-}
-export default function App() {
-  const [isDark, setIsDark] = useState(getInitialTheme);
+function Dashboard() {
+  const { theme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [active, setActive] = useState("dashboard");
@@ -684,23 +747,6 @@ export default function App() {
   const [tickets, setTickets] = useState(MAINTENANCE);
   const [addUnitOpen, setAddUnitOpen] = useState(false);
   const [logTicketOpen, setLogTicketOpen] = useState(false);
-
-  // sync Tailwind's `dark` class on <html> with local isDark state, plus
-  // the native `color-scheme` so browser-drawn chrome (scrollbars, select
-  // popups, date pickers) follows the same theme instead of staying light
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", isDark);
-    document.documentElement.style.colorScheme = isDark ? "dark" : "light";
-  }, [isDark]);
-
-  // if the user hasn't chosen a theme this session, keep following the OS
-  useEffect(() => {
-    if (!window.matchMedia) return;
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = (e) => setIsDark(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
 
   const kpis = useMemo(() => {
     const total = units.length;
@@ -725,14 +771,12 @@ export default function App() {
   }, []);
 
   return (
-    <div className="flex h-full min-h-screen w-full flex-col overflow-x-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <div className={`flex h-full min-h-screen w-full flex-col overflow-x-hidden ${theme.page}`}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
         @keyframes dialogIn { from { opacity: 0; transform: translateY(-4px) scale(0.98) } to { opacity: 1; transform: translateY(0) scale(1) } }
         * { font-family: 'Plus Jakarta Sans', sans-serif; }
-        html, body { background-color: #f8fafc; }
-        html.dark, html.dark body { background-color: #020617; }
       `}</style>
 
       {/* Row: sidebar + main content column */}
@@ -749,8 +793,6 @@ export default function App() {
 
         <div className="flex min-h-screen min-w-0 flex-1 flex-col">
           <Header
-            isDark={isDark}
-            setIsDark={setIsDark}
             setMobileOpen={setMobileOpen}
             onAddUnit={() => setAddUnitOpen(true)}
             property={property}
@@ -762,8 +804,8 @@ export default function App() {
             {/* breadcrumb / page title */}
             <div className="flex items-center justify-between">
               <div className="min-w-0">
-                <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50">Dashboard</h1>
-                <div className="flex items-center gap-1 text-xs text-slate-400">
+                <h1 className={`text-lg font-semibold tracking-tight ${theme.textPrimary}`}>Dashboard</h1>
+                <div className={`flex items-center gap-1 text-xs ${theme.textFaint}`}>
                   <span className="truncate">{property.name}</span>
                   <ChevronRightIcon className="h-3 w-3 shrink-0" />
                   <span>Overview</span>
@@ -812,7 +854,6 @@ export default function App() {
               </div>
             </div>
           </main>
-
         </div>
       </div>
 
@@ -826,5 +867,16 @@ export default function App() {
         <LogTicketForm onSubmit={handleLogTicket} onCancel={() => setLogTicketOpen(false)} />
       </Dialog>
     </div>
+  );
+}
+
+/* ----------------------------------------------------------------------------
+   11. ROOT APP 
+   -------------------------------------------------------------------------- */
+export default function App() {
+  return (
+    <ThemeProvider>
+      <Dashboard />
+    </ThemeProvider>
   );
 }
