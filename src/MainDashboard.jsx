@@ -401,6 +401,8 @@ function Header({ setMobileOpen, onAddUnit, property, setProperty, user }) {
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
+
+  const [isOpen, setIsOpen] = useState(false);
   return (
     <header className={`sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 border-b px-3 backdrop-blur-sm sm:gap-3 sm:px-4 ${theme.headerBg} ${theme.panelBorder}`}>
       <button
@@ -461,14 +463,15 @@ function Header({ setMobileOpen, onAddUnit, property, setProperty, user }) {
 
         {/* Profile avatar — replaces the old "Log Ticket" button. Logging a
             ticket now lives on the Maintenance Queue card itself. */}
-        <button className={`flex items-center gap-2 rounded-md py-1 pl-1 pr-1.5 sm:pr-2.5 ${theme.hoverBg}`}>
-          <Avatar name={user.name} />
+        <button    onClick={() => setIsOpen((prev) => !prev)}  className={`flex items-center gap-2 rounded-md py-1 pl-1 pr-1.5 sm:pr-2.5 ${theme.hoverBg}`}>
+          <a><Avatar name={user.name} /> </a>
           <span className="hidden text-left leading-tight md:block">
             <span className={`block text-sm font-medium ${theme.textSecondary}`}>{user.name}</span>
             <span className={`block text-[11px] ${theme.textFaint}`}>{user.role}</span>
           </span>
         </button>
       </div>
+      
     </header>
   );
 }

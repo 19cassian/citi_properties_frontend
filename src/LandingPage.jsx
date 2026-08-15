@@ -1,27 +1,4 @@
-/* ============================================================================
-   CITI PROPERTIES — Marketing Landing Page
-   Visual system matches the product dashboard (indigo/slate, Plus Jakarta
-   Sans, rounded-md UI) rather than generic AI-template defaults. Theming
-   uses the same ThemeContext pattern as the dashboard — explicit JS state,
-   not Tailwind's dark: media-query variant.
 
-   Revision notes:
-   - Hero now has a full-bleed animated background (looping SVG skyline +
-     gradient sweep) standing in for real video/photo footage, since no
-     licensed video/photo asset of the actual product exists to embed. The
-     component accepts a `videoSrc` prop — drop in a real .mp4 and it plays
-     that instead, no other changes needed. Kept dark/cinematic regardless
-     of site theme, the way footage would be, so it reads as one fixed
-     visual band rather than something that flickers with the toggle.
-   - Product showcase: the Maintenance and Access panels no longer use
-     generic shimmer bars — they render the same real ticket rows / role
-     cards you'd see in the actual dashboard.
-   - Pricing cards now show real numbers instead of "Custom"/"Talk to us".
-   - Testimonials: 5 quotes in a page-turn carousel (CSS 3D rotateY around
-     the left edge) that mimics a book page flipping, auto-advancing with
-     manual prev/next and dot controls, degrading to an instant swap under
-     prefers-reduced-motion.
-   ========================================================================== */
 import React, {
   createContext, useContext, useState, useEffect, useRef, useMemo, useCallback,
 } from "react";
@@ -32,10 +9,16 @@ import {
   Route
 } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
-/* ----------------------------------------------------------------------------
-   0. THEME CONTEXT — same pattern as the dashboard: explicit class tokens
-      driven by React state, never Tailwind's dark: variant.
-   -------------------------------------------------------------------------- */
+
+
+
+
+
+
+
+
+
+
 const ThemeContext = createContext(null);
 function useTheme() {
   const ctx = useContext(ThemeContext);
@@ -99,6 +82,7 @@ function ThemeProvider({ children }) {
   const value = useMemo(() => ({ isDark, toggleTheme, theme }), [isDark, toggleTheme, theme]);
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
+
 
 /* ----------------------------------------------------------------------------
    1. SCROLL-REVEAL HOOK — one-shot fade/slide-up, respects reduced motion.
@@ -355,6 +339,7 @@ function ThemeToggle({ size = "h-9 w-9" }) {
 function Header({ onRequestDemo }) {
   const { theme } = useTheme();
   const [open, setOpen] = useState(false);
+  const navigate=useNavigate()
   return (
     <header className={`sticky top-0 z-40 border-b backdrop-blur-sm ${theme.headerBg} ${theme.divider}`}>
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 sm:px-6">
@@ -375,7 +360,7 @@ function Header({ onRequestDemo }) {
 
         <div className="ml-auto hidden items-center gap-2 lg:flex">
           <ThemeToggle />
-          <Button variant="secondary" size="sm">Log In</Button>
+          <Button onClick={() => navigate("/login")} variant="secondary" size="sm">Log In</Button>
           <Button variant="primary" size="sm" icon={ArrowRight} onClick={onRequestDemo}>Request a Demo</Button>
         </div>
 
@@ -396,7 +381,7 @@ function Header({ onRequestDemo }) {
           ))}
           <div className="mt-2 flex gap-2 px-2">
           
-                <Button variant="secondary" size="sm" className="flex-1">Log In</Button>
+                <Button onClick={()=>navigate("/login")} variant="secondary" size="sm" className="flex-1">Log In</Button>
             <Button variant="primary" size="sm" className="flex-1" onClick={onRequestDemo}>Request a Demo</Button>
             
           </div>
@@ -410,6 +395,8 @@ function Header({ onRequestDemo }) {
    7. HERO
    -------------------------------------------------------------------------- */
 function Hero({ onRequestDemo }) {
+    const navigate = useNavigate();
+
   return (
     <section id="top" className="relative isolate overflow-hidden">
       <HeroBackground />
@@ -426,8 +413,10 @@ function Hero({ onRequestDemo }) {
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Button variant="primary" icon={ArrowRight} onClick={onRequestDemo}>Request a Demo</Button>
               <Button
+              
                 className="border-white/20 bg-white/5 text-white hover:bg-white/10"
-                variant="secondary"
+                variant="secondary"  
+                onClick={() => navigate("/login")}
               >
                 Log In
               </Button>
@@ -879,7 +868,7 @@ function FinalCta({ onRequestDemo }) {
             >
               Request a Demo
             </Button>
-            <Button onClick={() => navigate("/dashboard")} variant="secondary" className="border-white/30 bg-transparent text-white hover:bg-white/10 ">
+            <Button onClick={() => navigate("/login")} variant="secondary" className="border-white/30 bg-transparent text-white hover:bg-white/10 ">
               Log In
             </Button>
           </div>
