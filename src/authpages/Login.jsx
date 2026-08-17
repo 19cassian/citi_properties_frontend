@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-
+import toast from "react-hot-toast";
 
 const ThemeContext = createContext(null);
 function useTheme() {
@@ -235,32 +235,43 @@ function LoginForm() {
   
  
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+  setError("");
+  const toastId = toast.loading('Signing in...');
+  const values = { username, password };
 
-    const values = {  username, password };
+  setSubmitting(true);
+  try {
+    const response = await axios.post(
+      "http://127.0.0.1:8000/api/login/",
+      values,
+      { headers: { "Content-Type": "application/json" } }
+    );
 
-    setSubmitting(true);
-    try {
-      const response = await axios.post(
-        "http://127.0.0.1:8000/api/login/",
-        values,
-        { headers: { "Content-Type": "application/json" } }
-      );
-      if (response.status === 200 || response.status === 201) {
-        setSubmitted(true);
-        navigate("/dashboard");
-        console.log(response.data)
-       console.log(token)
-      }
-    } catch (err) {
-      console.log("An error occurred!", err.response?.data || err.message);
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setSubmitting(false);
+    // Save tokens for authenticated requests across the app
+    if (response.data.access && response.data.refresh ) {
+     localStorage.setItem('access', response.data.access);
+     localStorage.setItem('refresh', response.data.refresh);
     }
-  };
+
+    setSubmitted(true);
+    toast.success("Logged in successfully!", { id: toastId });
+setTimeout(() => {
+  navigate("/dashboard");
+}, 500);
+  } catch (err) {
+    console.log("An error occurred!", err.response?.data || err.message);
+    
+    // Extract Django error message if available, fallback to generic
+    const serverMessage = err.response?.data?.detail || "Invalid credentials. Please try again.";
+    setError(serverMessage);
+    toast.error(serverMessage, { id: toastId });
+
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   return (
     <div className="flex min-h-full w-full flex-col justify-center px-5 py-10 sm:px-10 lg:px-16 xl:px-20">

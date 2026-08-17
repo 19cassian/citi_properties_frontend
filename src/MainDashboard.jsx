@@ -7,7 +7,19 @@ import {
   Menu, X, ArrowUpDown, MoreHorizontal, AlertTriangle, Clock, Wrench,
   Home, Users, FileText, LayoutDashboard, Settings, Building2,
   ClipboardList, CircleCheck, ArrowUp, ArrowDown, Filter, ChevronRight as ChevronRightIcon,
+  LogOutIcon,
 } from "lucide-react";
+import axios from "axios";
+
+
+
+
+
+
+
+
+
+
 
 
 const ThemeContext = createContext(null);
@@ -401,8 +413,37 @@ function Header({ setMobileOpen, onAddUnit, property, setProperty, user }) {
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
+  const [dropDown ,setDropDown]=useState(false)
 
   const [isOpen, setIsOpen] = useState(false);
+  {/*
+  const navigate=useNavigate()
+  
+   const handleLogout = async() => {
+    const accessToken=localStorage.getItem('access')
+    const refreshToken=localStorage.getItem('refresh')
+    try {
+    if(accessToken){
+   const response=await axios.post( "http://127.0.0.1:8000/api/logout/", {refresh:refreshToken},
+      {headers:{Authorization:`Bearer ${accessToken}`},} );
+    }
+    if(response.status==200||response.status==205){
+      console.log("Logout succesfully")  
+      return navigate("/")}
+
+    } catch (error) {
+      console.log("Unable to logout",error)
+
+    } finally{
+      localStorage.removeItem('access');
+      localStorage.removeItem('refresh'); 
+      navigate("/")
+    }
+    } */}
+  
+
+
+
   return (
     <header className={`sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 border-b px-3 backdrop-blur-sm sm:gap-3 sm:px-4 ${theme.headerBg} ${theme.panelBorder}`}>
       <button
@@ -448,6 +489,7 @@ function Header({ setMobileOpen, onAddUnit, property, setProperty, user }) {
       <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
         <Button variant="primary" size="sm" icon={Plus} onClick={onAddUnit}>
           <span className="hidden xs:inline sm:inline">Add Unit</span>
+
         </Button>
 
         <div className={`mx-0.5 h-6 w-px sm:mx-1 ${theme.dividerBar}`} />
@@ -460,16 +502,30 @@ function Header({ setMobileOpen, onAddUnit, property, setProperty, user }) {
         <ThemeToggle />
 
         <div className={`mx-0.5 h-6 w-px sm:mx-1 ${theme.dividerBar}`} />
+{/* Profile avatar button trigger */}
+<button 
+  onClick={() => setIsOpen((prev) => !prev)} 
+  className={`flex items-center gap-2 rounded-md py-1 pl-1 pr-1.5 sm:pr-2.5 ${theme.hoverBg}`}
+>
+  <Avatar name={user.name} /> 
+  <span className="hidden text-left leading-tight md:block">
+    <span className={`block text-sm font-medium ${theme.textSecondary}`}>{user.name}</span>
+    <span className={`block text-[11px] ${theme.textFaint}`}>{user.role}</span>
+  </span>
+</button>
 
-        {/* Profile avatar — replaces the old "Log Ticket" button. Logging a
-            ticket now lives on the Maintenance Queue card itself. */}
-        <button    onClick={() => setIsOpen((prev) => !prev)}  className={`flex items-center gap-2 rounded-md py-1 pl-1 pr-1.5 sm:pr-2.5 ${theme.hoverBg}`}>
-          <a><Avatar name={user.name} /> </a>
-          <span className="hidden text-left leading-tight md:block">
-            <span className={`block text-sm font-medium ${theme.textSecondary}`}>{user.name}</span>
-            <span className={`block text-[11px] ${theme.textFaint}`}>{user.role}</span>
-          </span>
-        </button>
+{/* Dropdown Card */}
+{isOpen && (
+  <div className="absolute right-0 mt-2 w-44 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl z-50 p-1.5 transition-all">
+    <button
+      className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"
+    >
+      <LogOutIcon  onClick={handleLogout} className="w-4 h-4" />
+      <span>Log out</span>
+    </button>
+  </div>
+)}
+        
       </div>
       
     </header>
