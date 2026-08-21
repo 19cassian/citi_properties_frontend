@@ -535,60 +535,52 @@ function Header({ setMobileOpen, onAddUnit, property, setProperty, user }) {
 /* ----------------------------------------------------------------------------
    6. UNIT & PROPERTY TABLE
    -------------------------------------------------------------------------- */
-function UnitTable({ units }) {
+function UnitTable() {
   const { theme } = useTheme();
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [tenantQuery, setTenantQuery] = useState("");
-  const [expiringOnly, setExpiringOnly] = useState(false);
-  const [sort, setSort] = useState({ key: "id", dir: "asc" });
-  const toggleSort = (key) => {
-    setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
-  };
-  const filtered = useMemo(() => {
-    const now = new Date("2026-08-12");
-    const in30 = new Date(now); in30.setDate(now.getDate() + 30);
-    let rows = units.filter((u) => {
-      if (statusFilter !== "All" && u.status !== statusFilter) return false;
-      if (tenantQuery && !u.tenant.toLowerCase().includes(tenantQuery.toLowerCase())) return false;
-      if (expiringOnly) {
-        if (!u.leaseEnd) return false;
-        const d = new Date(u.leaseEnd);
-        if (d > in30 || d < now) return false;
-      }
-      return true;
-    });
-    rows = [...rows].sort((a, b) => {
-      let av = a[sort.key], bv = b[sort.key];
-      if (sort.key === "rent") { av = av ?? 0; bv = bv ?? 0; }
-      if (sort.key === "leaseEnd") { av = av || "9999"; bv = bv || "9999"; }
-      if (av < bv) return sort.dir === "asc" ? -1 : 1;
-      if (av > bv) return sort.dir === "asc" ? 1 : -1;
-      return 0;
-    });
-    return rows;
-  }, [units, statusFilter, tenantQuery, expiringOnly, sort]);
-  const columns = [
-    { key: "id", label: "Unit" },
-    { key: "property", label: "Property" },
-    { key: "tenant", label: "Tenant" },
-    { key: "status", label: "Status" },
-    { key: "rent", label: "Rent" },
-    { key: "leaseEnd", label: "Lease End" },
-  ];
+ 
+
+const [units ,setUnits]=useState([])
+
+  useEffect(()=>{
+    const fetchtableData = async() => {
+   try {
+     const response= await axios.get("http://127.0.0.1:8000/landlords/list/units",
+     )
+     console.log(response.data)
+    setUnits(response.data)
+
+   } catch (error) {
+    console.log("No data were found",error)
+   }
+ };    
+  fetchtableData();
+   },[])
+
+//Filtering by tenant name
+const [tenant ,setTenant]=useState([])
+
+  const filterbyTenant=()=>{
+  setTenant( units.filter((u)=>{u.tenant==="tenant"}))
+  }
+
+
+
+
   return (
+
+    
     <div className={`rounded-lg border ${theme.panelBg} ${theme.panelBorder}`}>
       <div className={`flex flex-wrap items-center gap-2 border-b p-3 ${theme.panelBorder}`}>
         <h2 className={`mr-2 text-sm font-semibold ${theme.textPrimary}`}>Units &amp; Properties</h2>
         <TextField
+           name="tenantName"
+          onChange={filterbyTenant}
           icon={Search}
           placeholder="Filter by tenant name…"
-          value={tenantQuery}
-          onChange={(e) => setTenantQuery(e.target.value)}
           className="w-full sm:w-52"
+          
         />
         <Select
-          value={statusFilter}
-          onChange={setStatusFilter}
           className="w-full sm:w-36"
           options={[
             { value: "All", label: "All statuses" },
@@ -598,60 +590,50 @@ function UnitTable({ units }) {
           ]}
         />
         <button
-          onClick={() => setExpiringOnly((v) => !v)}
-          className={`inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors duration-150 ${
-            expiringOnly ? theme.filterActive : theme.filterInactive
-          }`}
+          className={`inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors duration-150`}
         >
           <Filter className="h-3.5 w-3.5" /> Expiring ≤ 30d
         </button>
-        <span className={`ml-auto text-xs ${theme.textFaint}`}>{filtered.length} of {units.length}</span>
+        <span className={`ml-auto text-xs ${theme.textFaint}`}></span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead>
             <tr className={`border-b ${theme.tableHeadBorder}`}>
-              {columns.map((c) => (
-                <th key={c.key} className={`px-3 py-2 text-xs font-medium uppercase tracking-wide ${theme.textMuted}`}>
-                  <button onClick={() => toggleSort(c.key)} className={`flex items-center gap-1 ${theme.hoverText}`}>
-                    {c.label}
-                    <ArrowUpDown className={`h-3 w-3 ${sort.key === c.key ? "text-indigo-500" : (theme.isDark ? "text-slate-600" : "text-slate-300")}`} />
-                  </button>
+              
+                <th  className={`px-3 py-2 text-xs font-medium uppercase tracking-wide ${theme.textMuted}`}>
+                 
                 </th>
-              ))}
+              
               <th className="px-3 py-2" />
             </tr>
           </thead>
           <tbody>
-            {filtered.map((u) => (
-              <tr key={u.id} className={`border-b last:border-0 ${theme.rowBorder} ${theme.hoverRow}`}>
-                <td className={`px-3 py-2.5 font-medium ${theme.textPrimary}`}>{u.id}</td>
-                <td className={`px-3 py-2.5 ${theme.textBody}`}>{u.property}</td>
+                      {units.map((u)=>(
+
+              <tr key={u.unit_id} className={`border-b last:border-0 ${theme.rowBorder} ${theme.hoverRow}`}>
+                <td className={`px-3 py-2.5 font-medium ${theme.textPrimary}`}>{u.unit_id}</td>
+                <td className={`px-3 py-2.5 ${theme.textBody}`}>{u.property_name}</td>
                 <td className={`px-3 py-2.5 ${theme.textBody}`}>{u.tenant}</td>
-                <td className="px-3 py-2.5"><Badge status={u.status} /></td>
-                <td className={`px-3 py-2.5 tabular-nums ${theme.textSecondary}`}>${u.rent.toLocaleString()}</td>
-                <td className={`px-3 py-2.5 ${theme.textMuted}`}>{u.leaseEnd || "—"}</td>
+                <td className="px-3 py-2.5"><Badge/>{u.Satus}</td>
+                <td className={`px-3 py-2.5 tabular-nums ${theme.textSecondary}`}>{u.rent_amount}</td>
+                <td className={`px-3 py-2.5 ${theme.textMuted}`}>{u.lease_end}</td>
                 <td className="px-3 py-2.5 text-right">
                   <button className={`rounded p-1 ${theme.iconMuted} ${theme.hoverBg} ${theme.hoverText}`}>
                     <MoreHorizontal className="h-4 w-4" />
                   </button>
                 </td>
               </tr>
-            ))}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={7} className={`px-3 py-8 text-center text-sm ${theme.textFaint}`}>
-                  No units match these filters.
-                </td>
-              </tr>
-            )}
+                      ))}
+
+             
           </tbody>
         </table>
       </div>
     </div>
-  );
+        );
 }
-
+        
 /* ----------------------------------------------------------------------------
    7. MAINTENANCE QUEUE
    -------------------------------------------------------------------------- */
